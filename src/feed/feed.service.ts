@@ -1,10 +1,13 @@
 import {
+  CACHE_MANAGER,
   HttpStatus,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cache } from 'cache-manager';
 
 import fetch from 'node-fetch';
 
@@ -12,9 +15,15 @@ import { GUARDIAN_API_URL } from '../contants';
 
 @Injectable()
 export class FeedService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   async getAllSections() {
+    const cachedList = await this.cacheManager.get<Section[]>('SECTION_LIST');
+    if (cachedList) return cachedList;
+
     const response = await fetch(
       `${GUARDIAN_API_URL}/sections?api-key=${this.configService.get(
         'GUARDIAN_API_KEY',
@@ -32,20 +41,39 @@ export class FeedService {
         'Unable to fetch data from guardians api. Please try again later or contact the developer!',
       );
 
-    return data.response.results
+    const list: Section[] = data.response.results
       .filter((item) => !item.id.includes('/'))
       .map((item) => ({
         id: item.id,
         title: item.webTitle,
       }));
+
+    await this.cacheManager.set('SECTION_LIST', list, { ttl: 10 * 60 });
+
+    return list;
   }
 
   async generateFeedForSection(section: string) {
-    const articles = await this.getAllArticlesForSection(section);
+    const articles = await this.getArticlesForSection(section);
     return this.generateFeedFromArticles(articles);
   }
 
-  private async getAllArticlesForSection(section: string) {
+  private async getArticlesForSection(section: string) {
+    const cachedList = await this.cacheManager.get<Article[]>(
+      `section-${section}`,
+    );
+    if (cachedList) return cachedList;
+
+    const fetchedData = await this.fetchArticlesForSection(section);
+    await this.cacheManager.set(`section-${section}`, fetchedData, {
+      // ttl is in seconds
+      ttl: 10 * 60,
+    });
+
+    return fetchedData;
+  }
+
+  private async fetchArticlesForSection(section: string) {
     const response = await fetch(
       `${GUARDIAN_API_URL}/${section}?api-key=${this.configService.get(
         'GUARDIAN_API_KEY',
@@ -102,6 +130,11 @@ export class FeedService {
     `;
     return rssFeed;
   }
+}
+
+export interface Section {
+  id: string;
+  title: string;
 }
 
 export interface SectionResponse {
