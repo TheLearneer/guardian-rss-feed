@@ -96,7 +96,7 @@ export class FeedService {
         (post) =>
           `
         <item>
-          <title>${post.webTitle}</title>
+          <title>${this.cleanText(post.webTitle)}</title>
           <link>${post.webUrl}</link>
           <guid>${post.webUrl}</guid>
           <pubDate>${new Date(post.webPublicationDate).toUTCString()}</pubDate>
@@ -122,6 +122,10 @@ export class FeedService {
       </rss>
     `;
     return rssFeed;
+  }
+
+  private cleanText(input: string) {
+    return input.replace(/&/g, 'and');
   }
 }
 
