@@ -130,7 +130,7 @@ export interface Section {
   title: string;
 }
 
-export interface SectionResponse {
+interface SectionResponse {
   response: {
     status: string;
     total: number;
@@ -141,7 +141,7 @@ export interface SectionResponse {
   };
 }
 
-export interface ArticleResponse {
+interface ArticleResponse {
   response: {
     status: string;
     total: number;
